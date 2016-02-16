@@ -3,7 +3,6 @@ package benchmark_bbs_test
 import (
 	"time"
 
-	"github.com/cloudfoundry-incubator/bbs/db/etcd"
 	"github.com/cloudfoundry-incubator/benchmark-bbs/reporter"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -19,11 +18,11 @@ var BenchmarkConvergenceGathering = func(numTrials int) {
 			guids := map[string]struct{}{}
 
 			b.Time("BBS' internal gathering of LRPs", func() {
-				actuals, err := etcdDB.GatherActualLRPs(logger, guids, &etcd.LRPMetricCounter{})
+				actuals, err := sqlDB.GatherActualLRPs(logger, guids, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(actuals)).To(BeNumerically("~", expectedLRPCount, expectedLRPVariation))
 
-				desireds, err := etcdDB.GatherAndPruneDesiredLRPs(logger, guids, &etcd.LRPMetricCounter{})
+				desireds, err := sqlDB.GatherAndPruneDesiredLRPs(logger, guids, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(desireds)).To(BeNumerically("~", expectedLRPCount, expectedLRPVariation))
 			}, reporter.ReporterInfo{

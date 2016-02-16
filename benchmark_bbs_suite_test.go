@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/cloudfoundry-incubator/bbs"
 	etcddb "github.com/cloudfoundry-incubator/bbs/db/etcd"
+	"github.com/cloudfoundry-incubator/bbs/db/sql"
 	"github.com/cloudfoundry-incubator/bbs/encryption"
 	"github.com/cloudfoundry-incubator/bbs/format"
 	"github.com/cloudfoundry-incubator/benchmark-bbs/generator"
@@ -77,6 +78,7 @@ var (
 	logger               lager.Logger
 	etcdClient           *etcd.Client
 	etcdDB               *etcddb.ETCDDB
+	sqlDB                *sqldb.SQLDB
 	bbsClient            bbs.Client
 	bbsClientHTTPTimeout time.Duration
 	dataDogClient        *datadog.Client
@@ -201,6 +203,7 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	etcdClient = initializeEtcdClient(logger, etcdOptions)
 	bbsClient = initializeBBSClient(logger, bbsClientHTTPTimeout)
 	etcdDB = initializeETCDDB(logger, etcdClient)
+	sqlDB = initializeSQLDB(etcdDB)
 
 	purge("/v1/desired_lrp")
 	purge("/v1/actual")
@@ -252,6 +255,7 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 		etcdClient = initializeEtcdClient(logger, etcdOptions)
 		bbsClient = initializeBBSClient(logger, bbsClientHTTPTimeout)
 		etcdDB = initializeETCDDB(logger, etcdClient)
+		sqlDB = initializeSQLDB(etcdDB)
 	}
 })
 
@@ -406,6 +410,20 @@ func initializeETCDDB(logger lager.Logger, etcdClient *etcd.Client) *etcddb.ETCD
 	cryptor := encryption.NewCryptor(keyManager, rand.Reader)
 
 	return etcddb.NewETCD(format.ENCRYPTED_PROTO, 1000, 1000, 1*time.Minute, cryptor, etcddb.NewStoreClient(etcdClient), nil, nil, clock.NewClock(), nil, nil)
+}
+
+func initializeSQLDB(etcdDb *etcddb.ETCDDB) *sqldb.SQLDB {
+	key, keys, err := encryptionFlags.Parse()
+	if err != nil {
+		logger.Fatal("cannot-setup-encryption", err)
+	}
+	keyManager, err := encryption.NewKeyManager(key, keys)
+	if err != nil {
+		logger.Fatal("cannot-setup-encryption", err)
+	}
+	cryptor := encryption.NewCryptor(keyManager, rand.Reader)
+
+	return sqldb.NewSQLDB(cryptor, etcdDB, nil)
 }
 
 func initializeBBSClient(logger lager.Logger, bbsClientHTTPTimeout time.Duration) bbs.Client {
