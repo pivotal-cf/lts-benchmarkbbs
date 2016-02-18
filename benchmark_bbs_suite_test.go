@@ -72,6 +72,8 @@ var (
 
 	errorTolerance float64
 
+	dbDSN string
+
 	logLevel    string
 	logFilename string
 
@@ -118,6 +120,7 @@ func init() {
 	flag.StringVar(&logLevel, "logLevel", string(INFO), "log level: debug, info, error or fatal")
 	flag.StringVar(&logFilename, "logFilename", "", "Name of local file to save logs to")
 	flag.Float64Var(&errorTolerance, "errorTolerance", 0.05, "error tollerance rate")
+	flag.StringVar(&dbDSN, "dbDSN", "", "DSN to use when connecting to sql database")
 
 	etcdFlags = AddETCDFlags(flag.CommandLine)
 	encryptionFlags = encryption.AddEncryptionFlags(flag.CommandLine)
@@ -423,7 +426,7 @@ func initializeSQLDB(etcdDb *etcddb.ETCDDB) *sqldb.SQLDB {
 	}
 	cryptor := encryption.NewCryptor(keyManager, rand.Reader)
 
-	return sqldb.NewSQLDB(cryptor, etcdDB, nil)
+	return sqldb.NewSQLDB(cryptor, etcdDB, dbDSN, nil)
 }
 
 func initializeBBSClient(logger lager.Logger, bbsClientHTTPTimeout time.Duration) bbs.Client {
