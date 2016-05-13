@@ -234,17 +234,18 @@ func newDesiredLRP(guid string) (*models.DesiredLRP, error) {
 	myRouterJSON2 := json.RawMessage(`{"container_port":2222,"host_fingerprint":"44:00:2b:21:19:1a:42:ab:54:2f:c3:9d:97:d6:c8:0f","private_key":"-----BEGIN RSA PRIVATE KEY-----\nMIICXQIBAAKBgQCu4BiQh96+AvbYHDxRhfK9Scsl5diUkb/LIbe7Hx7DZg8iTxvr\nkw+de3i1TZG3wH02bdReBnCXrN/u59q0qqsz8ge71BFqnSF0dJaSmXhWizN0NQEy\n5u4WyqM4WJTzUGFnofJxnwFArHBT6QEtDjqCJxyggjuBrF60x3HtSfp4gQIDAQAB\nAoGBAJp/SbSHFXbxz3tmlrO/j5FEHMJCqnG3wqaIB3a+K8Od60j4c0ZRCr6rUx16\nhn69BOKNbc4UCm02QjEjjcmH7u/jLflvKLR/EeEXpGpAd7i3b5bqNn98PP+KwnbS\nPxbot37KErdwLnlF8QYFZMeqHiXQG8nO1nqroiX+fVUDtipBAkEAx8nDxLet6ObJ\nWzdR/8dSQ5qeCqXlfX9PFN6JHtw/OBZjRP5jc2cfGXAAB2h7w5XBy0tak1+76v+Y\nTrdq/rqAdQJBAOAT7W0FpLAZEJusY4sXkhZJvGO0e9MaOdYx53Z2m2gUgxLuowkS\nOmKn/Oj+jqr8r1FAhnTYBDY3k5lzM9p41l0CQEXQ9j6qSXXYIIllvZv6lX7Wa2Ah\nNR8z+/i5A4XrRZReDnavxyUu5ilHgFsWYhmpHb3jKVXS4KJwi1MGubcmiXkCQQDH\nWrNG5Vhpm0MdXLeLDcNYtO04P2BSpeiC2g81Y7xLUsRyWYEPFvp+vznRCHhhQ0Gu\npht5ZJ4KplNYmBev7QW5AkA2PuQ8n7APgIhi8xBwlZW3jufnSHT8dP6JUCgvvon1\nDvUM22k/ZWRo0mUB4BdGctIqRFiGwB8Hd0WSl7gSb5oF\n-----END RSA PRIVATE KEY-----\n"}`)
 	modTag := models.NewModificationTag("epoch", 0)
 	desiredLRP := &models.DesiredLRP{
-		ProcessGuid:          guid,
-		Domain:               "benchmark-bbs",
-		RootFs:               "some:rootfs",
-		Instances:            1,
-		EnvironmentVariables: []*models.EnvironmentVariable{{Name: "FOO", Value: "bar"}},
-		Setup:                models.WrapAction(&models.RunAction{Path: "ls", User: "name"}),
-		Action:               models.WrapAction(&models.RunAction{Path: "ls", User: "name"}),
-		StartTimeoutMs:       15,
+		ProcessGuid:             guid,
+		Domain:                  "benchmark-bbs",
+		RootFs:                  "some:rootfs",
+		Instances:               1,
+		EnvironmentVariables:    []*models.EnvironmentVariable{{Name: "FOO", Value: "bar"}},
+		Setup:                   models.WrapAction(&models.RunAction{Path: "ls", User: "name"}),
+		Action:                  models.WrapAction(&models.RunAction{Path: "ls", User: "name"}),
+		StartTimeoutMs:          15000,
+		DeprecatedStartTimeoutS: 15,
 		Monitor: models.WrapAction(models.EmitProgressFor(
 			models.Timeout(models.Try(models.Parallel(models.Serial(&models.RunAction{Path: "ls", User: "name"}))),
-				10*time.Second,
+				10000,
 			),
 			"start-message",
 			"success-message",
