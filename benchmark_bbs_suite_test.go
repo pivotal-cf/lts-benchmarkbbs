@@ -80,6 +80,7 @@ var (
 	logFilename string
 
 	databaseConnectionString string
+	databaseDriver           string
 
 	logger               lager.Logger
 	etcdClient           *etcd.Client
@@ -109,6 +110,7 @@ func init() {
 	flag.Float64Var(&percentWrites, "percentWrites", 5.0, "percentage of actual LRPs to write on each rep bulk loop")
 
 	flag.StringVar(&databaseConnectionString, "databaseConnectionString", "", "Connection string for a MySQL database")
+	flag.StringVar(&databaseDriver, "databaseDriver", "mysql", "SQL database driver name")
 
 	flag.StringVar(&bbsAddress, "bbsAddress", "", "Address of the BBS Server")
 	flag.StringVar(&bbsClientCert, "bbsClientCert", "", "BBS client SSL certificate")
@@ -202,8 +204,10 @@ type expectedLRPCounts struct {
 	ActualLRPVariations map[string]float64
 }
 
-var _ = SynchronizedBeforeSuite(func() []byte {
-	bbsClient = initializeBBSClient(logger, bbsClientHTTPTimeout)
+func initializeActiveDB() *sql.DB {
+	if activeDB != nil {
+		return nil
+	}
 
 	if databaseConnectionString == "" {
 		etcdOptions, err := etcdFlags.Validate()
@@ -212,23 +216,36 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 		etcdClient = initializeEtcdClient(logger, etcdOptions)
 		etcdDB = initializeETCDDB(logger, etcdClient)
 
-		cleanupETCD()
-
 		activeDB = etcdDB
+		return nil
+	}
+
+	if databaseDriver == "postgres" && !strings.Contains(databaseConnectionString, "sslmode") {
+		databaseConnectionString = fmt.Sprintf("%s?sslmode=disable", databaseConnectionString)
+	}
+
+	sqlConn, err := sql.Open(databaseDriver, databaseConnectionString)
+	if err != nil {
+		logger.Fatal("failed-to-open-sql", err)
+	}
+	sqlConn.SetMaxOpenConns(1)
+	sqlConn.SetMaxIdleConns(1)
+
+	err = sqlConn.Ping()
+	Expect(err).NotTo(HaveOccurred())
+
+	sqlDB = initializeSQLDB(logger, sqlConn)
+	activeDB = sqlDB
+	return sqlConn
+}
+
+var _ = SynchronizedBeforeSuite(func() []byte {
+	bbsClient = initializeBBSClient(logger, bbsClientHTTPTimeout)
+
+	if conn := initializeActiveDB(); conn != nil {
+		cleanupSQLDB(conn)
 	} else {
-		sqlConn, err := sql.Open("mysql", databaseConnectionString)
-		if err != nil {
-			logger.Fatal("failed-to-open-sql", err)
-		}
-		sqlConn.SetMaxOpenConns(1)
-		sqlConn.SetMaxIdleConns(1)
-
-		err = sqlConn.Ping()
-		Expect(err).NotTo(HaveOccurred())
-
-		sqlDB = initializeSQLDB(logger, sqlConn)
-		cleanupSQLDB(sqlConn)
-		activeDB = sqlDB
+		cleanupETCD()
 	}
 
 	_, err := bbsClient.Domains(logger)
@@ -274,29 +291,7 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 
 	bbsClient = initializeBBSClient(logger, bbsClientHTTPTimeout)
 
-	if databaseConnectionString == "" {
-		etcdOptions, err := etcdFlags.Validate()
-		Expect(err).NotTo(HaveOccurred())
-
-		etcdClient = initializeEtcdClient(logger, etcdOptions)
-		etcdDB = initializeETCDDB(logger, etcdClient)
-
-		activeDB = etcdDB
-	} else {
-		sqlConn, err := sql.Open("mysql", databaseConnectionString)
-		if err != nil {
-			logger.Fatal("failed-to-open-sql", err)
-		}
-		sqlConn.SetMaxOpenConns(1)
-		sqlConn.SetMaxIdleConns(1)
-
-		err = sqlConn.Ping()
-		Expect(err).NotTo(HaveOccurred())
-
-		sqlDB = initializeSQLDB(logger, sqlConn)
-
-		activeDB = sqlDB
-	}
+	initializeActiveDB()
 })
 
 var _ = SynchronizedAfterSuite(func() {
@@ -304,7 +299,7 @@ var _ = SynchronizedAfterSuite(func() {
 	if databaseConnectionString == "" {
 		cleanupETCD()
 	} else {
-		sqlConn, err := sql.Open("mysql", databaseConnectionString)
+		sqlConn, err := sql.Open(databaseDriver, databaseConnectionString)
 		if err != nil {
 			logger.Fatal("failed-to-open-sql", err)
 		}
@@ -475,7 +470,7 @@ func initializeSQLDB(logger lager.Logger, sqlConn *sql.DB) *sqldb.SQLDB {
 	}
 	cryptor := encryption.NewCryptor(keyManager, rand.Reader)
 
-	return sqldb.NewSQLDB(sqlConn, 1000, 1000, format.ENCODED_PROTO, cryptor, guidprovider.DefaultGuidProvider, clock.NewClock(), "mysql")
+	return sqldb.NewSQLDB(sqlConn, 1000, 1000, format.ENCODED_PROTO, cryptor, guidprovider.DefaultGuidProvider, clock.NewClock(), databaseDriver)
 }
 
 func initializeBBSClient(logger lager.Logger, bbsClientHTTPTimeout time.Duration) bbs.InternalClient {
