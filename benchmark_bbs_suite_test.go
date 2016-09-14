@@ -65,6 +65,7 @@ var (
 
 	numTrials          int
 	numReps            int
+	numSubscribers     int
 	numPopulateWorkers int
 	percentWrites      float64
 
@@ -104,6 +105,7 @@ func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.IntVar(&numTrials, "numTrials", 10, "number of benchmark trials to average across")
 	flag.IntVar(&numReps, "numReps", 10, "number of reps to simulate")
+	flag.IntVar(&numSubscribers, "numSubscribers", 300, "number of additional BBS event subscribers")
 	flag.IntVar(&numPopulateWorkers, "numPopulateWorkers", 10, "number of workers generating desired LRPs during setup")
 	flag.IntVar(&desiredLRPs, "desiredLRPs", 0, "number of single instance DesiredLRPs to create")
 	flag.Float64Var(&percentWrites, "percentWrites", 5.0, "percentage of actual LRPs to write on each rep bulk loop")
@@ -137,7 +139,7 @@ func init() {
 		log.Fatal("bbsAddress is required")
 	}
 
-	BenchmarkTests(numReps, numTrials)
+	BenchmarkTests(numReps, numTrials, numSubscribers)
 }
 
 func TestBenchmarkBbs(t *testing.T) {

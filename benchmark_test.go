@@ -31,8 +31,44 @@ var bulkCycle = 30 * time.Second
 var eventCount int32 = 0
 var claimCount int32 = 0
 
-var BenchmarkTests = func(numReps, numTrials int) {
+var BenchmarkTests = func(numReps, numTrials, numSubscribers int) {
 	Describe("main benchmark test", func() {
+		eventSubscriberRunner := func(cellID string) ifrit.RunFunc {
+			return func(signals <-chan os.Signal, ready chan<- struct{}) error {
+				eventSource, err := bbsClient.SubscribeToEventsForCell(logger, cellID)
+				Expect(err).NotTo(HaveOccurred())
+				close(ready)
+
+				eventChan := make(chan models.Event)
+				go func() {
+					for {
+						event, err := eventSource.Next()
+						if err != nil {
+							logger.Error("error-getting-next-event", err)
+							return
+						}
+						if event != nil {
+							eventChan <- event
+						}
+					}
+				}()
+
+				for {
+					select {
+					case <-eventChan:
+
+					case <-signals:
+						if eventSource != nil {
+							err := eventSource.Close()
+							if err != nil {
+								logger.Error("failed-closing-event-source", err)
+							}
+						}
+						return nil
+					}
+				}
+			}
+		}
 
 		eventCountRunner := func(signals <-chan os.Signal, ready chan<- struct{}) error {
 			eventSource, err := bbsClient.SubscribeToEvents(logger)
@@ -71,12 +107,21 @@ var BenchmarkTests = func(numReps, numTrials int) {
 		}
 
 		var process ifrit.Process
+		var eventSubscribers []ifrit.Process
 		BeforeEach(func() {
 			process = ifrit.Invoke(ifrit.RunFunc(eventCountRunner))
+			eventSubscribers = make([]ifrit.Process, numSubscribers)
+			for i := 0; i < numSubscribers; i++ {
+				cellID := fmt.Sprintf("cell-%d", i%numReps)
+				eventSubscribers[i] = ifrit.Invoke(ifrit.RunFunc(eventSubscriberRunner(cellID)))
+			}
 		})
 
 		AfterEach(func() {
 			ginkgomon.Kill(process)
+			for i := 0; i < numSubscribers; i++ {
+				eventSubscribers[i].Signal(os.Kill)
+			}
 		})
 
 		Measure("data for benchmarks", func(b Benchmarker) {
