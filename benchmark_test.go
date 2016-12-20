@@ -31,7 +31,7 @@ var bulkCycle = 30 * time.Second
 var eventCount int32 = 0
 var claimCount int32 = 0
 
-var BenchmarkTests = func(numReps, numTrials int) {
+var BenchmarkTests = func(numReps, numTrials int, localRouteEmitters bool) {
 	Describe("main benchmark test", func() {
 
 		eventCountRunner := func(signals <-chan os.Signal, ready chan<- struct{}) error {
@@ -127,29 +127,38 @@ var BenchmarkTests = func(numReps, numTrials int) {
 				}
 			}()
 
-			// start route-emitter
-			go func() {
-				defer GinkgoRecover()
-				logger.Info("start-route-emitter-loop")
-				defer logger.Info("finish-route-emitter-loop")
-				wg.Add(1)
-				defer wg.Done()
-				for i := 0; i < numTrials; i++ {
-					sleepDuration := getSleepDuration(i, bulkCycle)
-					time.Sleep(sleepDuration)
-					b.Time("fetch all actualLRPs", func() {
-						actuals, err := bbsClient.ActualLRPGroups(logger, models.ActualLRPFilter{})
-						Expect(err).NotTo(HaveOccurred())
-						Expect(len(actuals)).To(BeNumerically("~", expectedLRPCount, expectedLRPVariation), "Number of ActualLRPs retrieved in router-emitter")
+			numRouteEmitters := 1
 
-						desireds, err := bbsClient.DesiredLRPSchedulingInfos(logger, models.DesiredLRPFilter{})
-						Expect(err).NotTo(HaveOccurred())
-						Expect(len(desireds)).To(BeNumerically("~", expectedLRPCount, expectedLRPVariation), "Number of DesiredLRPs retrieved in route-emitter")
-					}, reporter.ReporterInfo{
-						MetricName: FetchActualLRPsAndSchedulingInfos,
-					})
-				}
-			}()
+			if localRouteEmitters {
+				numRouteEmitters = numReps
+			}
+
+			for i := 0; i < numRouteEmitters; i++ {
+				wg.Add(1)
+
+				// start route-emitter
+				go func() {
+					defer GinkgoRecover()
+					logger.Info("start-route-emitter-loop")
+					defer logger.Info("finish-route-emitter-loop")
+					defer wg.Done()
+					for i := 0; i < numTrials; i++ {
+						sleepDuration := getSleepDuration(i, bulkCycle)
+						time.Sleep(sleepDuration)
+						b.Time("fetch all actualLRPs", func() {
+							actuals, err := bbsClient.ActualLRPGroups(logger, models.ActualLRPFilter{})
+							Expect(err).NotTo(HaveOccurred())
+							Expect(len(actuals)).To(BeNumerically("~", expectedLRPCount, expectedLRPVariation), "Number of ActualLRPs retrieved in router-emitter")
+
+							desireds, err := bbsClient.DesiredLRPSchedulingInfos(logger, models.DesiredLRPFilter{})
+							Expect(err).NotTo(HaveOccurred())
+							Expect(len(desireds)).To(BeNumerically("~", expectedLRPCount, expectedLRPVariation), "Number of DesiredLRPs retrieved in route-emitter")
+						}, reporter.ReporterInfo{
+							MetricName: FetchActualLRPsAndSchedulingInfos,
+						})
+					}
+				}()
+			}
 
 			totalRan := int32(0)
 			totalQueued := int32(0)
