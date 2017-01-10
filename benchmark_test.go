@@ -279,11 +279,19 @@ func routeEmitter(b Benchmarker, wg *sync.WaitGroup, localRouteEmitters bool, ce
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(actuals)).To(BeNumerically("~", expectedActualLRPCount, expectedActualLRPVariation), "Number of ActualLRPs retrieved in router-emitter")
 
+			guids := []string{}
+			for _, actual := range actuals {
+				lrp, _ := actual.Resolve()
+				guids = append(guids, lrp.ProcessGuid)
+			}
+
 			semaphore <- struct{}{}
-			desireds, err := bbsClient.DesiredLRPSchedulingInfos(logger, models.DesiredLRPFilter{})
+			desireds, err := bbsClient.DesiredLRPSchedulingInfos(logger, models.DesiredLRPFilter{
+				ProcessGuids: guids,
+			})
 			<-semaphore
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(desireds)).To(BeNumerically("~", expectedLRPCount, expectedLRPVariation), "Number of DesiredLRPs retrieved in route-emitter")
+			Expect(desireds).To(HaveLen(len(guids)))
 
 		}, reporter.ReporterInfo{
 			MetricName: FetchActualLRPsAndSchedulingInfos,
