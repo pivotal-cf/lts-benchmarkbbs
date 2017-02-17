@@ -349,7 +349,13 @@ func (lo *lrpOperation) Execute() {
 	lo.b.Time("start actual LRP", func() {
 		netInfo := models.NewActualLRPNetInfo("1.2.3.4", models.NewPortMapping(61999, 8080))
 		lo.semaphore <- struct{}{}
+		start := time.Now()
 		err = bbsClient.StartActualLRP(logger, &actualLRP.ActualLRPKey, &actualLRP.ActualLRPInstanceKey, &netInfo)
+		end := time.Now()
+		dur := end.Sub(start)
+		if dur > 5*time.Second {
+			logger.Info("start-actual-lrp", lager.Data{"resp-time": dur, "process-guid": actualLRP.ActualLRPKey.ProcessGuid})
+		}
 		<-lo.semaphore
 		Expect(err).NotTo(HaveOccurred())
 
@@ -365,7 +371,13 @@ func (lo *lrpOperation) Execute() {
 		lo.b.Time("claim actual LRP", func() {
 			index := int(actualLRP.ActualLRPKey.Index)
 			lo.semaphore <- struct{}{}
+			start := time.Now()
 			err = bbsClient.ClaimActualLRP(logger, actualLRP.ActualLRPKey.ProcessGuid, index, &actualLRP.ActualLRPInstanceKey)
+			end := time.Now()
+			dur := end.Sub(start)
+			if dur > 5*time.Second {
+				logger.Info("claim-actual-lrp", lager.Data{"resp-time": dur, "process-guid": actualLRP.ActualLRPKey.ProcessGuid})
+			}
 			<-lo.semaphore
 			Expect(err).NotTo(HaveOccurred())
 			atomic.AddInt32(lo.globalEventCount, 1)
