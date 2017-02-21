@@ -25,7 +25,6 @@ import (
 	"code.cloudfoundry.org/bbs/format"
 	"code.cloudfoundry.org/bbs/guidprovider"
 	benchmarkconfig "code.cloudfoundry.org/benchmarkbbs/config"
-	"code.cloudfoundry.org/benchmarkbbs/generator"
 	"code.cloudfoundry.org/benchmarkbbs/reporter"
 	"code.cloudfoundry.org/cfhttp"
 	"code.cloudfoundry.org/clock"
@@ -200,22 +199,22 @@ var _ = BeforeSuite(func() {
 
 	expectedActualLRPVariations = make(map[string]float64)
 
-	if config.DesiredLRPs > 0 {
-		desiredLRPGenerator := generator.NewDesiredLRPGenerator(
-			config.ErrorTolerance,
-			config.MetricPrefix,
-			config.NumPopulateWorkers,
-			bbsClient,
-			dataDogClient,
-		)
-		expectedLRPCount, expectedActualLRPCounts, err = desiredLRPGenerator.Generate(logger, config.NumReps, config.DesiredLRPs)
-		Expect(err).NotTo(HaveOccurred())
-		expectedLRPVariation = float64(expectedLRPCount) * config.ErrorTolerance
+	// if config.DesiredLRPs > 0 {
+	// 	desiredLRPGenerator := generator.NewDesiredLRPGenerator(
+	// 		config.ErrorTolerance,
+	// 		config.MetricPrefix,
+	// 		config.NumPopulateWorkers,
+	// 		bbsClient,
+	// 		dataDogClient,
+	// 	)
+	// 	expectedLRPCount, expectedActualLRPCounts, err = desiredLRPGenerator.Generate(logger, config.NumReps, config.DesiredLRPs)
+	// 	Expect(err).NotTo(HaveOccurred())
+	// 	expectedLRPVariation = float64(expectedLRPCount) * config.ErrorTolerance
 
-		for k, v := range expectedActualLRPCounts {
-			expectedActualLRPVariations[k] = float64(v) * config.ErrorTolerance
-		}
-	}
+	// 	for k, v := range expectedActualLRPCounts {
+	// 		expectedActualLRPVariations[k] = float64(v) * config.ErrorTolerance
+	// 	}
+	// }
 })
 
 var _ = AfterSuite(func() {
@@ -231,7 +230,7 @@ var _ = AfterSuite(func() {
 
 		err = sqlConn.Ping()
 		Expect(err).NotTo(HaveOccurred())
-		cleanupSQLDB(sqlConn)
+		// cleanupSQLDB(sqlConn)
 	}
 })
 
