@@ -189,7 +189,7 @@ var _ = BeforeSuite(func() {
 	bbsClient = initializeBBSClient(logger, time.Duration(config.BBSClientHTTPTimeout))
 
 	if conn := initializeActiveDB(); conn != nil {
-		cleanupSQLDB(conn)
+		// cleanupSQLDB(conn)
 	} else {
 		cleanupETCD()
 	}
