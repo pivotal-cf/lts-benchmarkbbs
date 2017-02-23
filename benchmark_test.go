@@ -347,16 +347,17 @@ func (lo *lrpOperation) Execute() {
 	actualLRP := lo.actualLRP
 
 	lo.b.Time("start actual LRP", func() {
+		bstart := time.Now()
 		netInfo := models.NewActualLRPNetInfo("1.2.3.4", models.NewPortMapping(61999, 8080))
 		lo.semaphore <- struct{}{}
 		start := time.Now()
 		err = bbsClient.StartActualLRP(logger, &actualLRP.ActualLRPKey, &actualLRP.ActualLRPInstanceKey, &netInfo)
-		end := time.Now()
-		dur := end.Sub(start)
-		if dur > 5*time.Second {
+		dur := time.Since(start).Seconds()
+		if dur > 5 {
 			logger.Info("start-actual-lrp", lager.Data{"resp-time": dur, "process-guid": actualLRP.ActualLRPKey.ProcessGuid})
 		}
 		<-lo.semaphore
+		logger.Info("finish-benchmark-start-actual", lager.Data{"resp-time": time.Since(bstart).Seconds(), "process-guid": actualLRP.ActualLRPKey.ProcessGuid})
 		Expect(err).NotTo(HaveOccurred())
 
 		// if the actual lrp was not already started, an event will be generated
@@ -369,6 +370,7 @@ func (lo *lrpOperation) Execute() {
 
 	if isClaiming {
 		lo.b.Time("claim actual LRP", func() {
+			bstart := time.Now()
 			index := int(actualLRP.ActualLRPKey.Index)
 			lo.semaphore <- struct{}{}
 			start := time.Now()
@@ -379,6 +381,8 @@ func (lo *lrpOperation) Execute() {
 				logger.Info("claim-actual-lrp", lager.Data{"resp-time": dur, "process-guid": actualLRP.ActualLRPKey.ProcessGuid})
 			}
 			<-lo.semaphore
+			bend := time.Now()
+			logger.Info("finish-benchmark-claim-actual", lager.Data{"resp-time": bend.Sub(bstart), "process-guid": actualLRP.ActualLRPKey.ProcessGuid})
 			Expect(err).NotTo(HaveOccurred())
 			atomic.AddInt32(lo.globalEventCount, 1)
 		}, reporter.ReporterInfo{
