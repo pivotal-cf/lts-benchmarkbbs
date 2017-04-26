@@ -146,11 +146,11 @@ var BenchmarkTests = func(numReps, numTrials int, localRouteEmitters bool) {
 
 			wg.Wait()
 
-			eventTolerance := float64(atomic.LoadInt32(&expectedEventCount)) * config.ErrorTolerance
+			// eventTolerance := float64(atomic.LoadInt32(&expectedEventCount)) * config.ErrorTolerance
 
-			Eventually(func() int32 {
-				return atomic.LoadInt32(&eventCount)
-			}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, eventTolerance), "events received")
+			// Eventually(func() int32 {
+			// 	return atomic.LoadInt32(&eventCount)
+			// }, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, eventTolerance), "events received")
 
 			Eventually(func() int32 {
 				return atomic.LoadInt32(&totalRan)
@@ -161,11 +161,12 @@ var BenchmarkTests = func(numReps, numTrials int, localRouteEmitters bool) {
 			// only the ones for its cell??????"
 			// Well, yes, but they currently receive ALL since we don't have
 			// server-side filtering for the event streams it subscribes to.
-			for _, v := range routeEmitterEventCounts {
-				Eventually(func() int32 {
-					return atomic.LoadInt32(v)
-				}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, eventTolerance), "events received")
-			}
+
+			// for _, v := range routeEmitterEventCounts {
+			// 	Eventually(func() int32 {
+			// 		return atomic.LoadInt32(v)
+			// 	}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, eventTolerance), "events received")
+			// }
 		}, 1)
 	})
 }
