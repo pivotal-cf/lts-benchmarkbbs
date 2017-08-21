@@ -176,10 +176,6 @@ var BenchmarkTests = func(numReps, numTrials int, localRouteEmitters bool) {
 			eventTolerance := float64(atomic.LoadInt32(&expectedEventCount)) * config.ErrorTolerance
 
 			Eventually(func() int32 {
-				return atomic.LoadInt32(&eventCount)
-			}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, eventTolerance), "events received")
-
-			Eventually(func() int32 {
 				return atomic.LoadInt32(&totalRan)
 			}, 2*time.Minute).Should(Equal(totalQueued), "should have run the same number of queued LRP operations")
 
@@ -194,7 +190,7 @@ var BenchmarkTests = func(numReps, numTrials int, localRouteEmitters bool) {
 					})
 					Eventually(func() int32 {
 						return atomic.LoadInt32(v)
-					}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, tolerance), "events received")
+					}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, tolerance), fmt.Sprintf("events received mismtached for %s", cellID))
 				}
 			} else {
 				logger.Info("checking-global-event-count", lager.Data{
@@ -207,6 +203,14 @@ var BenchmarkTests = func(numReps, numTrials int, localRouteEmitters bool) {
 					return atomic.LoadInt32(routeEmitterEventCounts["global"])
 				}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, tolerance), "events received")
 			}
+
+			logger.Info("checking-global-event-count", lager.Data{
+				"expected":  expectedEventCount,
+				"tolerance": eventTolerance,
+			})
+			Eventually(func() int32 {
+				return atomic.LoadInt32(&eventCount)
+			}, 2*time.Minute).Should(BeNumerically("~", expectedEventCount, eventTolerance), "events received")
 		}, 1)
 	})
 }
@@ -474,16 +478,19 @@ func (lo *lrpOperation) Execute() {
 	isClaiming := randomNum < (lo.percentWrites / 2)
 	actualLRP := lo.actualLRP
 
+	logger := logger.Session("lrp-operation", lager.Data{"cell_id": actualLRP.CellId, "process_guid": actualLRP.ProcessGuid})
+
 	lo.b.Time("start actual LRP", func() {
 		netInfo := models.NewActualLRPNetInfo("1.2.3.4", "2.2.2.2", models.NewPortMapping(61999, 8080))
 		lo.semaphore <- struct{}{}
+		logger.Info("sending-start-event")
 		err = bbsClient.StartActualLRP(logger, &actualLRP.ActualLRPKey, &actualLRP.ActualLRPInstanceKey, &netInfo)
 		<-lo.semaphore
 		Expect(err).NotTo(HaveOccurred())
 
 		// if the actual lrp was not already started, an event will be generated
 		if actualLRP.State != models.ActualLRPStateRunning {
-			logger.Info("expecting-start-event", lager.Data{"cell_id": actualLRP.CellId, "process_guid": actualLRP.ProcessGuid})
+			logger.Info("expecting-start-event")
 			atomic.AddInt32(lo.globalEventCount, 1)
 			atomic.AddInt32(lo.localEventCount, 1)
 		}
@@ -495,10 +502,11 @@ func (lo *lrpOperation) Execute() {
 		lo.b.Time("claim actual LRP", func() {
 			index := int(actualLRP.ActualLRPKey.Index)
 			lo.semaphore <- struct{}{}
+			logger.Info("sending-claim-event")
 			err = bbsClient.ClaimActualLRP(logger, actualLRP.ActualLRPKey.ProcessGuid, index, &actualLRP.ActualLRPInstanceKey)
 			<-lo.semaphore
 			Expect(err).NotTo(HaveOccurred())
-			logger.Info("expecting-claim-event", lager.Data{"cell_id": actualLRP.CellId, "process_guid": actualLRP.ProcessGuid})
+			logger.Info("expecting-claim-event")
 			atomic.AddInt32(lo.globalEventCount, 1)
 			atomic.AddInt32(lo.localEventCount, 1)
 		}, reporter.ReporterInfo{

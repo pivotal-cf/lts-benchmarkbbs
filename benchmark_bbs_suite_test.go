@@ -99,9 +99,9 @@ func TestBenchmarkBbs(t *testing.T) {
 	if config.LogFilename == "" {
 		logWriter = GinkgoWriter
 	} else {
-		logFile, err := os.Create(config.LogFilename)
+		logFile, err := os.OpenFile(config.LogFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			panic(fmt.Errorf("Error opening file '%s': %s", config.LogFilename, err.Error()))
+			t.Errorf("cannot create file: %s", err)
 		}
 		defer logFile.Close()
 
@@ -195,7 +195,7 @@ var _ = BeforeSuite(func() {
 		query := `
 			SELECT
 				COUNT(*)
-			FROM desired_lrps
+			FROM lrp_deployments
 		`
 		res := conn.QueryRow(query)
 		err := res.Scan(&expectedLRPCount)
@@ -289,6 +289,8 @@ func initializeBBSClient(logger lager.Logger, bbsClientHTTPTimeout time.Duration
 func cleanupSQLDB(conn *sql.DB) {
 	_, err := conn.Exec("TRUNCATE actual_lrps")
 	Expect(err).NotTo(HaveOccurred())
-	_, err = conn.Exec("TRUNCATE desired_lrps")
+	_, err = conn.Exec("TRUNCATE lrp_deployments")
+	Expect(err).NotTo(HaveOccurred())
+	_, err = conn.Exec("TRUNCATE lrp_definitions")
 	Expect(err).NotTo(HaveOccurred())
 }
